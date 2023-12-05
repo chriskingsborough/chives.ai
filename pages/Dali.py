@@ -1,5 +1,9 @@
 import streamlit as st
 from openai import OpenAI
+import pandas as pd
+
+from utils import download_image
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(
     page_title="Dali",
@@ -40,6 +44,28 @@ prompt = st.text_input(
     label="Describe the image you want to create"
 )
 
+# get existing images
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+df = conn.query(
+    sql="""
+    select
+        id,
+        prompt,
+        url,
+        model
+    from "images"
+    where prompt is not null
+    """,
+    worksheet="images",
+    ttl=1
+)
+
+# TODO: this little bit is broken
+images = [
+    row.tolist() for row in df.to_records(index=False)
+]
+
 # check if we've already used the prompt
 if prompt and st.session_state.image_prompt != prompt:
     # update session state
@@ -56,21 +82,45 @@ if prompt and st.session_state.image_prompt != prompt:
     st.write(
         prompt
     )
-
-    # image_url = response.data[0].url
-    # probably need to do markdown with unsafe URL to include href in image
-
+    images.reverse()
     for data in response.data:
         image_url = data.url
         st.image(image_url)
-        # st.markdown(f'''
-        #     <a href="{image_url}">
-        #         <img src="{image_url}" class='img-fluid'/>
-        #     </a>''',
-        #     unsafe_allow_html=True
-        # )
+
         st.link_button(
             "See full size",
             url=image_url
         )
+
+        images.append(
+            [
+                1,
+                prompt,
+                image_url,
+                st.session_state.image_model
+            ]
+        )
+        # add to data
         st.divider()
+        # pull down the file and write to local storage
+        download_image(
+            image_url,
+            "images"
+        )
+
+    images.reverse()
+    images_df = pd.DataFrame(
+        images,
+        columns=[
+            "id",
+            "prompt",
+            "url",
+            "model"
+        ]
+    )
+
+    # update the spreadsheet
+    conn.update(
+        worksheet="images",
+        data=images_df
+    )

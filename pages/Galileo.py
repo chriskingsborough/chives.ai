@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from urllib.parse import urlparse
 
@@ -35,12 +36,14 @@ for row in df.itertuples():
     file_name = urlparse(row.url).path.split("/")[-1]
 
     image_link = "images" + "/" + file_name
-    st.image(image_link)
+    # check if the image exists
+    if os.path.exists(image_link):
+        st.image(image_link)
 
-    # TODO: this little bit will be brokwn after 1hr
-    # probably should just be a download button
-    st.link_button(
-        "See full size",
-        url=row.url
-    )
-    st.divider()
+        # TODO: this little bit will be brokwn after 1hr
+        # probably should just be a download button
+        st.link_button(
+            "See full size",
+            url=row.url
+        )
+        st.divider()

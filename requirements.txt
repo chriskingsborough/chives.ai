@@ -1,4 +1,5 @@
 openai
 streamlit
 requests
-st-gsheets-connection
+# st-gsheets-connection
+SQLAlchemy==1.4.0

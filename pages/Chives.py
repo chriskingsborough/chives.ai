@@ -7,10 +7,19 @@ st.set_page_config(
 )
 
 with st.sidebar:
+    openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
+    "[Get an OpenAI API key](https://platform.openai.com/account/api-keys)"
     model = st.sidebar.selectbox("Open AI Model", ["gpt-3.5-turbo", "gpt-4"]) # vision gpt-4-vision-preview
 
-openai_api_key = st.secrets["OPENAI_API_KEY"]
+# openai_api_key = st.secrets["OPENAI_API_KEY"]
+
+if 'api_key' not in st.session_state:
+    st.session_state["api_key"] = openai_api_key
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# client = OpenAI(
+#     api_key=st.session_state["api_key"]
+# )
 
 # openai_api_key = ""
 st.title("💬 Chives")

@@ -3,7 +3,6 @@ import streamlit as st
 from urllib.parse import urlparse
 
 from openai import OpenAI
-from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(
     page_title="Galileo",
@@ -11,23 +10,35 @@ st.set_page_config(
 )
 
 # create conn
-conn = st.connection("gsheets", type=GSheetsConnection)
+conn = st.connection('images_db', type='sql')
+
+# Create Table with conn.session.
+with conn.session as s:
+    s.execute(
+        """CREATE TABLE IF NOT EXISTS images (
+                uid TEXT, 
+                prompt TEXT,
+                url TEXT,
+                model TEXT
+            );
+        """
+    )
+    s.commit()
 
 df = conn.query(
     sql="""
     select
-        id,
+        uid,
         prompt,
         url,
         model
-    from "images"
-    where prompt is not null
+    from images
     """,
-    worksheet="images",
     ttl=1
 )
 
-
+st.title("Galileo")
+st.caption("Your gallery")
 
 # Print results.
 for row in df.itertuples():
@@ -40,10 +51,13 @@ for row in df.itertuples():
     if os.path.exists(image_link):
         st.image(image_link)
 
-        # TODO: this little bit will be brokwn after 1hr
-        # probably should just be a download button
-        st.link_button(
-            "See full size",
-            url=row.url
-        )
+        # download the image
+        with open(image_link, "rb") as file:
+            btn = st.download_button(
+                    label="Download image",
+                    data=file,
+                    file_name=image_link,
+                    mime="image/png"
+                )
+
         st.divider()

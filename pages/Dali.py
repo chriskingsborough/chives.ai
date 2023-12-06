@@ -3,12 +3,27 @@ from openai import OpenAI
 import pandas as pd
 
 from utils import download_image
-from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(
     page_title="Dali",
     page_icon="🧑‍🎨",
 )
+
+conn = st.connection('images_db', type='sql')
+
+# Create Table with conn.session.
+with conn.session as s:
+    s.execute(
+        """CREATE TABLE IF NOT EXISTS images (
+                uid TEXT, 
+                prompt TEXT,
+                url TEXT,
+                model TEXT
+            );
+        """
+    )
+    s.commit()
+
 
 with st.sidebar:
     image_model = st.sidebar.selectbox("Image Model", ["dall-e-2", "dall-e-3"]) # vision gpt-4-vision-preview
@@ -35,7 +50,12 @@ if "image_model" not in st.session_state:
 if "image_prompt" not in st.session_state:
     st.session_state["image_prompt"] = ""
 
+
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# client = OpenAI(
+#     api_key=st.session_state["api_key"]
+# )
 
 st.title("💬 Dali")
 st.caption("🚀 A streamlit image generator powered by OpenAI LLM")
@@ -43,28 +63,6 @@ st.caption("🚀 A streamlit image generator powered by OpenAI LLM")
 prompt = st.text_input(
     label="Describe the image you want to create"
 )
-
-# get existing images
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-df = conn.query(
-    sql="""
-    select
-        id,
-        prompt,
-        url,
-        model
-    from "images"
-    where prompt is not null
-    """,
-    worksheet="images",
-    ttl=1
-)
-
-# TODO: this little bit is broken
-images = [
-    row.tolist() for row in df.to_records(index=False)
-]
 
 # check if we've already used the prompt
 if prompt and st.session_state.image_prompt != prompt:
@@ -82,7 +80,6 @@ if prompt and st.session_state.image_prompt != prompt:
     st.write(
         prompt
     )
-    images.reverse()
     for data in response.data:
         image_url = data.url
         st.image(image_url)
@@ -91,15 +88,29 @@ if prompt and st.session_state.image_prompt != prompt:
             "See full size",
             url=image_url
         )
-
-        images.append(
-            [
-                1,
-                prompt,
-                image_url,
-                st.session_state.image_model
-            ]
-        )
+        # write the image to database
+        with conn.session as s:
+            s.execute(
+                """INSERT INTO images (
+                        uid,
+                        prompt,
+                        url,
+                        model
+                    ) VALUES (
+                        :uid,
+                        :prompt,
+                        :url,
+                        :model
+                    )
+                """,
+                params={
+                    "uid": 1, # TODO: needs to be replaced
+                    "prompt": prompt,
+                    "url": image_url,
+                    "model": st.session_state.image_model
+                }
+            )
+            s.commit()
         # add to data
         st.divider()
         # pull down the file and write to local storage
@@ -107,20 +118,3 @@ if prompt and st.session_state.image_prompt != prompt:
             image_url,
             "images"
         )
-
-    images.reverse()
-    images_df = pd.DataFrame(
-        images,
-        columns=[
-            "id",
-            "prompt",
-            "url",
-            "model"
-        ]
-    )
-
-    # update the spreadsheet
-    conn.update(
-        worksheet="images",
-        data=images_df
-    )
